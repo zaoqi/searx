@@ -9,13 +9,19 @@
 - 设置完成后，可在测试环境执行 env FLASK_APP=searx.webapp FLASK_ENV=development FLASK_DEBUG=1 SEARX_SETTINGS_PATH=settings_et_dev.yml python -m flask run
 
 Entropage theme
-~~~~~~
+~~~~~~~~~~~~~~~
 - cd searx/static/themes/entropage
 - npm i
 - npm start
 less: themes/entropage/less
 
 js: themes/entropage/js/searx_src
+
+秘迹搜索反馈渠道和联系方式
+~~~~~~~~~~~~~~~~~~~~~
+微信: mijixiaoer
+
+邮件: contact@entropage.com
 
 searx
 =====
