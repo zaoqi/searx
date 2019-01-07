@@ -1,3 +1,22 @@
+秘迹搜索开源说明
+=============
+秘迹搜索是基于开源项目Searx进行二次开发的，因为Searx采用的开源协议是AGPL-3.0，秘迹搜索(https://mijsou.com)严格遵守这一开源协议，将我们所有的改动同步开源出来。欢迎对网络隐私防护感兴趣的朋友们一起开发和维护秘迹搜索。
+
+环境搭建
+~~~~~~
+- 安装python3环境，使用python3运行秘迹搜索的代码。pip3 install -r requirements.txt
+- 在正式运行代码前，请正确设置配置文件settings_et_dev.yml。秘迹搜索使用了redis 作为缓存，使用sentry收集异常信息。
+- 设置完成后，可在测试环境执行 env FLASK_APP=searx.webapp FLASK_ENV=development FLASK_DEBUG=1 SEARX_SETTINGS_PATH=settings_et_dev.yml python -m flask run
+
+Entropage theme
+~~~~~~
+- cd searx/static/themes/entropage
+- npm i
+- npm start
+less: themes/entropage/less
+
+js: themes/entropage/js/searx_src
+
 searx
 =====
 
