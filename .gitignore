@@ -1,3 +1,4 @@
+.vscode
 .coverage
 coverage/
 .installed.cfg
@@ -17,3 +18,4 @@ setup.cfg
 node_modules/
 
 .tx/
+messages.pot

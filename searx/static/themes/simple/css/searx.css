@@ -2106,6 +2106,7 @@ article.result-images[data-vim-selected]::before {
     max-width: 98%;
   }
 }
+
 #main_results div#results.only_template_images {
   flex-direction: column;
   width: auto;

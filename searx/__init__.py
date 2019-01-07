@@ -42,7 +42,7 @@ def check_settings_yml(file_name):
 if 'SEARX_SETTINGS_PATH' in environ:
     # if possible set path to settings using the
     # enviroment variable SEARX_SETTINGS_PATH
-    settings_path = check_settings_yml(environ['SEARX_SETTINGS_PATH'])
+    settings_path = check_settings_yml(join(searx_dir, environ['SEARX_SETTINGS_PATH']))
 else:
     # if not, get it from searx code base or last solution from /etc/searx
     settings_path = check_settings_yml(join(searx_dir, 'settings.yml')) or check_settings_yml('/etc/searx/settings.yml')

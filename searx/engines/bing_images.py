@@ -21,6 +21,7 @@ import re
 from searx.url_utils import urlencode
 from searx.utils import match_language
 
+
 # engine dependent config
 categories = ['images']
 paging = True
@@ -72,37 +73,45 @@ def request(query, params):
 
 # get response from search-request
 def response(resp):
+    from searx.webapp import sentry
     results = []
 
     dom = html.fromstring(resp.text)
 
     # parse results
     for result in dom.xpath('//div[@id="mmComponent_images_1"]/ul/li/div/div[@class="imgpt"]'):
-        link = result.xpath('./a')[0]
+        try:
+            link = result.xpath('./a')[0]
 
-        # TODO find actual title
-        title = link.xpath('.//img/@alt')[0]
+            # TODO find actual title
+            title = link.xpath('.//img/@alt')[0]
 
-        # parse json-data (it is required to add a space, to make it parsable)
-        json_data = loads(_quote_keys_regex.sub(r'\1"\2": \3', link.attrib.get('m')))
+            # parse json-data (it is required to add a space, to make it parsable)
+            json_data = loads(_quote_keys_regex.sub(r'\1"\2": \3', link.attrib.get('m')))
 
-        url = json_data.get('purl')
-        img_src = json_data.get('murl')
+            url = json_data.get('purl')
+            img_src = json_data.get('murl')
 
-        thumb_json_data = loads(_quote_keys_regex.sub(r'\1"\2": \3', link.attrib.get('mad')))
-        thumbnail = thumb_json_data.get('turl')
+            thumb_json_data = loads(_quote_keys_regex.sub(r'\1"\2": \3', link.attrib.get('mad')))
+            width = int(thumb_json_data.get('max'))
+            height = int(thumb_json_data.get('mah'))
+            thumbnail = thumb_json_data.get('turl')
 
-        # append result
-        results.append({'template': 'images.html',
-                        'url': url,
-                        'title': title,
-                        'content': '',
-                        'thumbnail_src': thumbnail,
-                        'img_src': img_src})
+            # append result
+            results.append({'template': 'images.html',
+                            'url': url,
+                            'width': width,
+                            'height': height,
+                            'title': title,
+                            'content': '',
+                            'thumbnail_src': thumbnail,
+                            'img_src': img_src})
 
-        # TODO stop parsing if 10 images are found
-        # if len(results) >= 10:
-        #     break
+            # TODO stop parsing if 10 images are found
+            # if len(results) >= 10:
+            #     break
+        except:
+            sentry.captureException()
 
     # return results
     return results

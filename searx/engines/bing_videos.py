@@ -18,6 +18,7 @@ from searx.url_utils import urlencode
 from searx.utils import match_language
 
 
+
 categories = ['videos']
 paging = True
 safesearch = True
@@ -65,24 +66,28 @@ def request(query, params):
 
 # get response from search-request
 def response(resp):
+    from searx.webapp import sentry
     results = []
 
     dom = html.fromstring(resp.text)
 
     for result in dom.xpath('//div[@class="dg_u"]'):
-        url = result.xpath('./div[@class="mc_vtvc"]/a/@href')[0]
-        url = 'https://bing.com' + url
-        title = extract_text(result.xpath('./div/a/div/div[@class="mc_vtvc_title"]/@title'))
-        content = extract_text(result.xpath('./div/a/div/div/div/div/text()'))
-        thumbnail = result.xpath('./div/a/div/div/img/@src')[0]
+        try:
+            url = (result.xpath('./div[@class="mc_vtvc"]/a/@href') or result.xpath('./div[@class="mc_vtvc mc_vtvc_fh"]/a/@href'))[0]
+            #url = 'https://bing.com' + url
+            title = extract_text(result.xpath('./div/a/div/div[@class="mc_vtvc_title"]/@title'))
+            content = extract_text(result.xpath('./div/a/div/div/div/div/text()'))
+            thumbnail = result.xpath('./div/a/div/div/img/@src')[0]
 
-        results.append({'url': url,
-                        'title': title,
-                        'content': content,
-                        'thumbnail': thumbnail,
-                        'template': 'videos.html'})
+            results.append({'url': url,
+                            'title': title,
+                            'content': content,
+                            'thumbnail': thumbnail,
+                            'template': 'videos.html'})
 
-        if len(results) >= number_of_results:
-            break
+            if len(results) >= number_of_results:
+                break
+        except:
+            sentry.captureException()
 
     return results

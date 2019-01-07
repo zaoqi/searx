@@ -5,7 +5,7 @@
 # Output files (engines_languages.json and languages.py)
 # are written in current directory to avoid overwriting in case something goes wrong.
 
-from json import dump
+from json import dumps
 import io
 from sys import path
 from babel import Locale, UnknownLocaleError
@@ -32,7 +32,7 @@ def fetch_supported_languages():
 
     # write json file
     with io.open(engines_languages_file, "w", encoding="utf-8") as f:
-        dump(engines_languages, f, ensure_ascii=False)
+        f.write(unicode(dumps(engines_languages, ensure_ascii=False)))
 
     return engines_languages
 
