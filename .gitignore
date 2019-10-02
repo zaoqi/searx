@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # to sync with .dockerignore
+=======
+.vscode
+>>>>>>> 2d4a7f7a04705ba62ef8e91c5f73ba17ee3fed45
 .coverage
 coverage/
 .installed.cfg
@@ -18,3 +22,4 @@ setup.cfg
 node_modules/
 
 .tx/
+messages.pot

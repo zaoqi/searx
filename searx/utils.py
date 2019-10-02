@@ -255,6 +255,12 @@ def prettify_url(url, max_length=74):
     else:
         return url
 
+def prettify_content(content, max_length=250):
+    if len(content) > max_length:
+        chunk_len = int(max_length / 2 + 1)
+        return u'{0}[...]{1}'.format(content[:chunk_len], content[-chunk_len:])
+    else:
+        return content
 
 # get element in list or default value
 def list_get(a_list, index, default=None):

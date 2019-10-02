@@ -63,5 +63,7 @@ language_codes = (
     (u"vi-VN", u"Tiếng Việt", u"", u"Vietnamese"),
     (u"zh", u"中文", u"", u"Chinese"),
     (u"zh-CN", u"中文", u"中国", u"Chinese"),
-    (u"zh-TW", u"中文", u"台灣", u"Chinese")
+    # The automatically generated files contains less languages. For now, we
+    # manually edit this file.
+    (u"zh-TW", u"中文", u"中國臺灣", u"Chinese")
 )

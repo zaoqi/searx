@@ -98,6 +98,7 @@ def search_one_request(engine, query, request_params):
 
 
 def search_one_request_safe(engine_name, query, request_params, result_container, start_time, timeout_limit):
+    from searx.webapp import sentry
     # set timeout for all HTTP requests
     requests_lib.set_timeout_for_thread(timeout_limit, start_time=start_time)
     # reset the HTTP total time
@@ -144,7 +145,14 @@ def search_one_request_safe(engine_name, query, request_params, result_container
             # requests timeout (connect or read)
             logger.error("engine {0} : HTTP requests timeout"
                          "(search duration : {1} s, timeout: {2} s) : {3}"
+<<<<<<< HEAD
                          .format(engine_name, engine_time, timeout_limit, e.__class__.__name__))
+=======
+                         .format(engine_name, search_duration, timeout_limit, e.__class__.__name__))
+            sentry.captureMessage("engine {0} : HTTP requests timeout"
+                         "(search duration : {1} s, timeout: {2} s) : {3}"
+                         .format(engine_name, search_duration, timeout_limit, e.__class__.__name__))
+>>>>>>> 2d4a7f7a04705ba62ef8e91c5f73ba17ee3fed45
             requests_exception = True
         elif (issubclass(e.__class__, requests.exceptions.RequestException)):
             result_container.add_unresponsive_engine((engine_name, gettext('request exception')))
@@ -176,6 +184,7 @@ def search_one_request_safe(engine_name, query, request_params, result_container
 
 
 def search_multiple_requests(requests, result_container, start_time, timeout_limit):
+    from searx.webapp import sentry
     search_id = uuid4().__str__()
 
     for engine_name, query, request_params in requests:
@@ -194,6 +203,7 @@ def search_multiple_requests(requests, result_container, start_time, timeout_lim
             if th.isAlive():
                 result_container.add_unresponsive_engine((th._engine_name, gettext('timeout')))
                 logger.warning('engine timeout: {0}'.format(th._engine_name))
+                sentry.captureMessage('engine timeout: {0}'.format(th._engine_name))
 
 
 # get default reqest parameter

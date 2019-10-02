@@ -1,46 +1,14 @@
 #!/usr/bin/env python
 
-'''
-searx is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-searx is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with searx. If not, see < http://www.gnu.org/licenses/ >.
-
-(C) 2013- by Adam Tauber, <asciimoo@gmail.com>
-'''
-
-if __name__ == '__main__':
-    from sys import path
-    from os.path import realpath, dirname
-    path.append(realpath(dirname(realpath(__file__)) + '/../'))
-
-import hashlib
-import hmac
-import json
-import os
-import sys
-
-import requests
-
+from werkzeug.serving import WSGIRequestHandler
 from searx import logger
-logger = logger.getChild('webapp')
-
-try:
-    from pygments import highlight
-    from pygments.lexers import get_lexer_by_name
-    from pygments.formatters import HtmlFormatter
-except:
-    logger.critical("cannot import dependency: pygments")
-    from sys import exit
-    exit(1)
+from raven.contrib.flask import Sentry
+from babel import negotiate_locale
+import requests
+import os
+import json
+import hmac
+import hashlib
 from cgi import escape
 from datetime import datetime, timedelta
 from time import time
@@ -72,6 +40,43 @@ from searx.preferences import Preferences, ValidationException, LANGUAGE_CODES
 from searx.answerers import answerers
 from searx.url_utils import urlencode, urlparse, urljoin
 from searx.utils import new_hmac
+'''
+searx is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+searx is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with searx. If not, see < http://www.gnu.org/licenses/ >.
+
+(C) 2013- by Adam Tauber, <asciimoo@gmail.com>
+'''
+
+import sys
+if sys.version[0] == '2':
+    sys.exit('Only Python 3 supported! Please use Python 3.')
+
+if __name__ == '__main__':
+    from sys import path
+    from os.path import realpath, dirname
+    path.append(realpath(dirname(realpath(__file__)) + '/../'))
+
+
+logger = logger.getChild('webapp')
+
+try:
+    from pygments import highlight
+    from pygments.lexers import get_lexer_by_name
+    from pygments.formatters import HtmlFormatter
+except Exception:
+    logger.critical("cannot import dependency: pygments")
+    from sys import exit
+    exit(1)
 
 # check if the pyopenssl package is installed.
 # It is needed for SSL connection without trouble, see #298
@@ -83,7 +88,7 @@ except ImportError:
 
 try:
     from cStringIO import StringIO
-except:
+except Exception:
     from io import StringIO
 
 
@@ -94,7 +99,6 @@ else:
     PY3 = False
 
 # serve pages with HTTP/1.1
-from werkzeug.serving import WSGIRequestHandler
 WSGIRequestHandler.protocol_version = "HTTP/{}".format(settings['server'].get('http_protocol_version', '1.0'))
 
 # about static
@@ -115,12 +119,14 @@ for indice, theme in enumerate(themes):
     for (dirpath, dirnames, filenames) in os.walk(theme_img_path):
         global_favicons[indice].extend(filenames)
 
+
 # Flask app
 app = Flask(
     __name__,
     static_folder=static_path,
     template_folder=templates_path
 )
+
 
 app.jinja_env.trim_blocks = True
 app.jinja_env.lstrip_blocks = True
@@ -153,7 +159,11 @@ outgoing_proxies = settings['outgoing'].get('proxies') or None
 
 @babel.localeselector
 def get_locale():
-    locale = request.accept_languages.best_match(settings['locales'].keys())
+    # Safari (macOS and iOS) sends Accept-Language: zh-cn, but Werkzeug cannot
+    # match it to zh. Fix it here.
+    # https://github.com/pallets/werkzeug/issues/450#issuecomment-26621966
+    preferred = [x.replace('-', '_') for x in request.accept_languages.values()]
+    locale = negotiate_locale(preferred, settings['locales'].keys())
 
     if request.preferences.get_value('locale') != '':
         locale = request.preferences.get_value('locale')
@@ -178,7 +188,7 @@ def code_highlighter(codelines, language=None):
     try:
         # find lexer by programing language
         lexer = get_lexer_by_name(language, stripall=True)
-    except:
+    except Exception:
         # if lexer is not found, using default one
         logger.debug('highlighter cannot find lexer for {0}'.format(language))
         lexer = get_lexer_by_name('text', stripall=True)
@@ -264,6 +274,9 @@ def url_for_theme(endpoint, override_theme=None, **values):
         filename_with_theme = "themes/{}/{}".format(theme_name, values['filename'])
         if filename_with_theme in static_files:
             values['filename'] = filename_with_theme
+            file_path = os.path.join(app.root_path,
+                                     endpoint, filename_with_theme)
+            values['staticVersion'] = int(os.stat(file_path).st_mtime)
     return url_for(endpoint, **values)
 
 
@@ -277,9 +290,10 @@ def proxify(url):
     url_params = dict(mortyurl=url.encode('utf-8'))
 
     if settings['result_proxy'].get('key'):
-        url_params['mortyhash'] = hmac.new(settings['result_proxy']['key'],
-                                           url.encode('utf-8'),
-                                           hashlib.sha256).hexdigest()
+        url_params['mortyhash'] = hmac.new(bytes(
+            settings['result_proxy']['key'], encoding='utf8'),
+            url.encode('utf-8'),
+            hashlib.sha256).hexdigest()
 
     return '{0}?{1}'.format(settings['result_proxy']['url'],
                             urlencode(url_params))
@@ -305,6 +319,57 @@ def image_proxify(url):
                             urlencode(dict(url=url.encode('utf-8'), h=h)))
 
 
+def cacl_image_width(a, b):
+    return int(int(a) * 200 / int(b))
+
+
+def cacl_image_height(a, b):
+    return int(int(b) / int(a) * 100)
+
+
+@app.route('/url_proxy', methods=['GET'])
+def url_proxy():
+    """get real url for baidu sogou and 360sousuo"""
+
+    url = request.args.get('proxyurl')
+    token = request.args.get('token')
+    if token != new_hmac(settings['result_proxy']['key'], url.encode('utf-8')):
+        return render('404.html'), 404
+
+    if "www.baidu.com/link?url" in url:
+        try:
+            resp = requests.head(url, timeout=1)
+        except requests.exceptions.Timeout:
+            return redirect(url)
+
+        if resp.status_code == 200:
+            realurl = resp.url
+        else:
+            realurl = url
+        return redirect(realurl)
+    else:
+        try:
+            resp = requests.get(url, timeout=1)
+        except requests.exceptions.Timeout:
+            return redirect(url)
+
+        if resp.status_code == 200:
+            if "http:" not in resp.text and "https:" not in resp.text:
+                # try to fix response with host in window.location.replace function
+                resp_content = resp.text.strip()
+                count = resp_content.index("window.location.replace(")
+                str_content = list(resp_content)
+                # 25 is len("window.location.replace(")+1
+                str_content.insert(count + 25, "https://" + urlparse(url)[1])
+                resp_content = "".join(str_content)
+                return resp_content
+            else:
+                # to get url from html response
+                return resp.content
+        else:
+            return redirect(url)
+
+
 def render(template_name, override_theme=None, **kwargs):
     disabled_engines = request.preferences.engines.get_disabled()
 
@@ -319,11 +384,15 @@ def render(template_name, override_theme=None, **kwargs):
                                     if x != 'general'
                                     and x in enabled_categories)
 
+    kwargs['categories'] = ['general', 'images', 'videos', 'it']
+
     if 'all_categories' not in kwargs:
         kwargs['all_categories'] = ['general']
         kwargs['all_categories'].extend(x for x in
                                         sorted(categories.keys())
                                         if x != 'general')
+
+    kwargs['all_categories'] = list(kwargs['categories'])
 
     if 'selected_categories' not in kwargs:
         kwargs['selected_categories'] = []
@@ -363,6 +432,10 @@ def render(template_name, override_theme=None, **kwargs):
     kwargs['url_for'] = url_for_theme
 
     kwargs['image_proxify'] = image_proxify
+
+    kwargs['cacl_image_width'] = cacl_image_width
+
+    kwargs['cacl_image_height'] = cacl_image_height
 
     kwargs['proxify'] = proxify if settings.get('result_proxy', {}).get('url') else None
 
@@ -408,7 +481,7 @@ def pre_request():
     request.preferences = preferences
     try:
         preferences.parse_dict(request.cookies)
-    except:
+    except Exception:
         request.errors.append(gettext('Invalid settings, please edit your preferences'))
 
     # merge GET, POST vars
@@ -494,7 +567,7 @@ def index():
         output_format = 'html'
 
     # check if there is query
-    if request.form.get('q') is None:
+    if request.form.get('q') is None or len(request.form.get('q')) == 0:
         if output_format == 'html':
             return render(
                 'index.html',
@@ -537,7 +610,8 @@ def index():
     for result in results:
         if output_format == 'html':
             if 'content' in result and result['content']:
-                result['content'] = highlight_content(escape(result['content'][:1024]), search_query.query)
+                result['content'] = highlight_content(prettify_content(
+                    escape(result['content'][:1024])), search_query.query)
             result['title'] = highlight_content(escape(result['title'] or u''), search_query.query)
         else:
             if result.get('content'):
@@ -545,7 +619,10 @@ def index():
             # removing html content and whitespace duplications
             result['title'] = ' '.join(html_to_text(result['title']).strip().split())
 
-        result['pretty_url'] = prettify_url(result['url'])
+        if result.__contains__('showurl'):
+            result['pretty_url'] = prettify_url(result['showurl'])
+        else:
+            result['pretty_url'] = prettify_url(result['url'])
 
         # TODO, check if timezone is calculated right
         if 'publishedDate' in result:
@@ -565,6 +642,7 @@ def index():
                 else:
                     result['publishedDate'] = format_date(result['publishedDate'])
 
+<<<<<<< HEAD
     if output_format == 'json':
         return Response(json.dumps({'query': search_query.query.decode('utf-8'),
                                     'number_of_results': number_of_results,
@@ -608,14 +686,16 @@ def index():
                           },
                           result_container.suggestions)
     #
+=======
+>>>>>>> 2d4a7f7a04705ba62ef8e91c5f73ba17ee3fed45
     return render(
         'results.html',
         results=results,
         q=request.form['q'],
         selected_categories=search_query.categories,
         pageno=search_query.pageno,
-        time_range=search_query.time_range,
-        number_of_results=format_decimal(number_of_results),
+        time_range=search_query.time_range if search_query.time_range else "",
+        number_of_results=format_decimal(round(number_of_results)),
         advanced_search=advanced_search,
         suggestions=suggestion_urls,
         answers=result_container.answers,
@@ -638,6 +718,14 @@ def about():
     """Render about page"""
     return render(
         'about.html',
+    )
+
+
+@app.route('/policy', methods=['GET'])
+def policy():
+    """Render policy page"""
+    return render(
+        'policy.html',
     )
 
 
@@ -696,7 +784,7 @@ def autocompleter():
                     mimetype='application/json')
 
 
-@app.route('/preferences', methods=['GET', 'POST'])
+# @app.route('/preferences', methods=['GET', 'POST'])
 def preferences():
     """Render preferences page && save user preferences"""
 
@@ -813,7 +901,7 @@ def image_proxy():
     return Response(img, mimetype=resp.headers['content-type'], headers=headers)
 
 
-@app.route('/stats', methods=['GET'])
+# @app.route('/stats', methods=['GET'])
 def stats():
     """Render engine statistics page."""
     stats = get_engines_stats()
@@ -868,7 +956,7 @@ def favicon():
                                mimetype='image/vnd.microsoft.icon')
 
 
-@app.route('/clear_cookies')
+# @app.route('/clear_cookies')
 def clear_cookies():
     resp = make_response(redirect(urljoin(settings['server']['base_url'], url_for('index'))))
     for cookie_name in request.cookies:
@@ -876,8 +964,9 @@ def clear_cookies():
     return resp
 
 
-@app.route('/config')
+# @app.route('/config')
 def config():
+<<<<<<< HEAD
     return jsonify({'categories': list(categories.keys()),
                     'engines': [{'name': engine_name,
                                  'categories': engine.categories,
@@ -906,6 +995,36 @@ def config():
                     'doi_resolvers': [r for r in settings['doi_resolvers']],
                     'default_doi_resolver': settings['default_doi_resolver'],
                     })
+=======
+    return jsonify(list({'categories': categories.keys(),
+                         'engines': [{'name': engine_name,
+                                      'categories': engine.categories,
+                                      'shortcut': engine.shortcut,
+                                      'enabled': not engine.disabled,
+                                      'paging': engine.paging,
+                                      'language_support': engine.language_support,
+                                      'supported_languages':
+                                      engine.supported_languages.keys()
+                                      if isinstance(engine.supported_languages, dict)
+                                      else engine.supported_languages,
+                                      'safesearch': engine.safesearch,
+                                      'time_range_support': engine.time_range_support,
+                                      'timeout': engine.timeout}
+                                     for engine_name, engine in engines.items()],
+                         'plugins': [{'name': plugin.name,
+                                      'enabled': plugin.default_on}
+                                     for plugin in plugins],
+                         'instance_name': settings['general']['instance_name'],
+                         'locales': settings['locales'],
+                         'default_locale': settings['ui']['default_locale'],
+                         'autocomplete': settings['search']['autocomplete'],
+                         'safe_search': settings['search']['safe_search'],
+                         'default_theme': settings['ui']['default_theme'],
+                         'version': VERSION_STRING,
+                         'doi_resolvers': [r for r in settings['doi_resolvers']],
+                         'default_doi_resolver': settings['default_doi_resolver'],
+                         }))
+>>>>>>> 2d4a7f7a04705ba62ef8e91c5f73ba17ee3fed45
 
 
 @app.errorhandler(404)
@@ -962,6 +1081,7 @@ class ReverseProxyPathFix(object):
 
 
 application = app
+sentry = Sentry(app, dsn=settings['sentry']['dsn'])
 # patch app to handle non root url-s behind proxy & wsgi
 app.wsgi_app = ReverseProxyPathFix(ProxyFix(application.wsgi_app))
 

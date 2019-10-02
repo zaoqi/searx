@@ -16,7 +16,7 @@ from searx.url_utils import quote, urlencode
 from searx.utils import match_language
 
 # search-url
-base_url = u'https://{language}.wikipedia.org/'
+base_url = u'https://en.wikipedia.org/'
 search_url = base_url + u'w/api.php?'\
     'action=query'\
     '&format=json'\
@@ -27,6 +27,7 @@ search_url = base_url + u'w/api.php?'\
     '&pithumbsize=300'\
     '&redirects'
 supported_languages_url = 'https://meta.wikimedia.org/wiki/List_of_Wikipedias'
+categories = ['general']
 
 
 # set language in base_url
@@ -73,6 +74,7 @@ def extract_first_paragraph(content, title, image):
 
 # get response from search-request
 def response(resp):
+    from searx.webapp import sentry
     results = []
 
     search_result = loads(resp.text)
@@ -87,27 +89,30 @@ def response(resp):
     if int(article_id) < 0:
         return []
 
-    title = page.get('title')
+    try:
+        title = page.get('title')
 
-    image = page.get('thumbnail')
-    if image:
-        image = image.get('source')
+        image = page.get('thumbnail')
+        if image:
+            image = image.get('source')
 
-    extract = page.get('extract')
+        extract = page.get('extract')
 
-    summary = extract_first_paragraph(extract, title, image)
+        summary = extract_first_paragraph(extract, title, image)
 
-    # link to wikipedia article
-    wikipedia_link = base_url.format(language=url_lang(resp.search_params['language'])) \
-        + 'wiki/' + quote(title.replace(' ', '_').encode('utf8'))
+        # link to wikipedia article
+        wikipedia_link = base_url.format(language=url_lang(resp.search_params['language'])) \
+            + 'wiki/' + quote(title.replace(' ', '_').encode('utf8'))
 
-    results.append({'url': wikipedia_link, 'title': title})
+        results.append({'url': wikipedia_link, 'title': title})
 
-    results.append({'infobox': title,
-                    'id': wikipedia_link,
-                    'content': summary,
-                    'img_src': image,
-                    'urls': [{'title': 'Wikipedia', 'url': wikipedia_link}]})
+        results.append({'infobox': title,
+                        'id': wikipedia_link,
+                        'content': summary,
+                        'img_src': image,
+                        'urls': [{'title': 'Wikipedia', 'url': wikipedia_link}]})
+    except:
+        sentry.captureException()
 
     return results
 

@@ -197,12 +197,15 @@ class ResultContainer(object):
             self.infoboxes.append(infobox)
 
     def _merge_result(self, result, position):
-        result['parsed_url'] = urlparse(result['url'])
+        if result.__contains__('showurl'):
+            result['parsed_url'] = urlparse(result['showurl'])
+        else:
+            result['parsed_url'] = urlparse(result['url'])
 
         # if the result has no scheme, use http as default
         if not result['parsed_url'].scheme:
             result['parsed_url'] = result['parsed_url']._replace(scheme="http")
-            result['url'] = result['parsed_url'].geturl()
+            result['url'] = urlparse(result['url']).geturl()
 
         result['engines'] = set([result['engine']])
 

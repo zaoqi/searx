@@ -191,11 +191,25 @@ def wikipedia(query, lang):
         return resp[1]
     return []
 
+def baidu(query, lang):
+    #baidu autocompleter
+    url = "http://search.i.entropage.com/suggestion?query={query}"
+
+    resp = get(url.format(query=query)).text.replace('true', 'True').replace('false', 'False')
+    resp = eval(resp)
+
+    results = []
+
+    if resp["code"] == 200:
+        results = resp["data"]
+        return results
+    return results
 
 backends = {'dbpedia': dbpedia,
             'duckduckgo': duckduckgo,
             'google': google,
             'startpage': startpage,
             'qwant': qwant,
-            'wikipedia': wikipedia
+            'wikipedia': wikipedia,
+            'baidu': baidu
             }

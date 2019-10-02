@@ -20,7 +20,10 @@ from searx.engines.xpath import extract_text
 from searx.url_utils import urlencode
 from searx.utils import match_language, gen_useragent
 
+<<<<<<< HEAD
 logger = logger.getChild('bing engine')
+=======
+>>>>>>> 2d4a7f7a04705ba62ef8e91c5f73ba17ee3fed45
 
 # engine dependent config
 categories = ['general']
@@ -47,7 +50,7 @@ def request(query, params):
     else:
         lang = match_language(params['language'], supported_languages, language_aliases)
 
-    query = u'language:{} {}'.format(lang.split('-')[0].upper(), query.decode('utf-8')).encode('utf-8')
+    query = query.decode('utf-8').encode('utf-8')
 
     search_path = search_string.format(
         query=urlencode({'q': query}),
@@ -55,38 +58,60 @@ def request(query, params):
 
     params['url'] = base_url + search_path
 
+<<<<<<< HEAD
+=======
+    params['headers']['User-Agent'] = gen_useragent('Macintosh; Intel Mac OS X 10_12_6')
+
+>>>>>>> 2d4a7f7a04705ba62ef8e91c5f73ba17ee3fed45
     return params
 
 
 # get response from search-request
 def response(resp):
+    from searx.webapp import sentry
     results = []
     result_len = 0
 
     dom = html.fromstring(resp.text)
+<<<<<<< HEAD
+=======
+
+    try:
+        results.append({'number_of_results': int(dom.xpath('//span[@class="sb_count"]/text()')[0]
+                                                 .split()[0].replace(',', ''))})
+    except:
+        sentry.captureException()
+
+>>>>>>> 2d4a7f7a04705ba62ef8e91c5f73ba17ee3fed45
     # parse results
     for result in dom.xpath('//div[@class="sa_cc"]'):
-        link = result.xpath('.//h3/a')[0]
-        url = link.attrib.get('href')
-        title = extract_text(link)
-        content = extract_text(result.xpath('.//p'))
+        try:
+            link = result.xpath('.//h3/a')[0]
+            url = link.attrib.get('href')
+            title = extract_text(link)
+            content = extract_text(result.xpath('.//p'))
 
-        # append result
-        results.append({'url': url,
-                        'title': title,
-                        'content': content})
+            # append result
+            results.append({'url': url,
+                            'title': title,
+                            'content': content})
+        except:
+            sentry.captureException()
 
     # parse results again if nothing is found yet
     for result in dom.xpath('//li[@class="b_algo"]'):
-        link = result.xpath('.//h2/a')[0]
-        url = link.attrib.get('href')
-        title = extract_text(link)
-        content = extract_text(result.xpath('.//p'))
+        try:
+            link = result.xpath('.//h2/a')[0]
+            url = link.attrib.get('href')
+            title = extract_text(link)
+            content = extract_text(result.xpath('.//p'))
 
-        # append result
-        results.append({'url': url,
-                        'title': title,
-                        'content': content})
+            # append result
+            results.append({'url': url,
+                            'title': title,
+                            'content': content})
+        except:
+            sentry.captureException()
 
     try:
         result_len_container = "".join(dom.xpath('//span[@class="sb_count"]/text()'))
